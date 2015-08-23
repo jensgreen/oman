@@ -1,0 +1,24 @@
+#!/bin/bash
+
+PAGE=`echo "$@" | awk '{print $NF}'q`
+MAN_ARGS=`echo "$@" | sed "s/\$PAGE$//"`
+
+URL="http://manpages.ubuntu.com/manpages.gz/"
+DISTRIB_CODENAME="vivid"
+
+MAN_DIR=`mktemp -d dman.XXXXXX`
+trap "rm -rf $MAN_DIR" EXIT HUP INT QUIT TERM
+URL_LIST=""
+MAN_LIST=""
+
+for i in `seq 1 9`; do
+  mandir="$MAN_DIR/man$i/"
+  manfile="$mandir/$PAGE.$i.gz"
+  url="$URL/$DISTRIB_CODENAME/man$i/$PAGE.$i.gz"
+  URL_LIST="$URL_LIST $mandir $url"
+  MAN_LIST="$MAN_LIST $manfile"
+done
+
+echo $URL_LIST | xargs -n 2 -P 9 wget -q -P
+echo $MAN_LIST | xargs -n 1 -P 9 gunzip -q
+man $MAN_ARGS -M "$MAN_DIR" $PAGE || true

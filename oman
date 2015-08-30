@@ -1,16 +1,39 @@
 #!/bin/bash
 
-PAGE=`echo "$@" | awk '{print $NF}'q`
+ARGS=`getopt v $*`
+expect_man=
+for var in $ARGS; do
+  if [[ $var == "-v" ]]; then
+    verbose=1
+  fi
+  # remove extra man ("oman !!" style)
+  if [[ $var == "--" ]]; then
+    expect_man=1
+  fi
+  if [[ $expect_man -eq 1 && "$var" == "man" ]]; then
+    man=1
+    break
+  fi
+done
+
+# prepare args from man name
+PAGE=`echo "$@" | awk '{print $NF}'`
 MAN_ARGS=`echo "$@" | sed "s/\$PAGE$//"`
 
-URL="http://manpages.ubuntu.com/manpages.gz/"
-DISTRIB_CODENAME="vivid"
+# oman !! style
+if [[ $man -eq 1 ]]; then
+  MAN_ARGS=
+fi
 
+# temp dir to store man pages
 MAN_DIR=`mktemp -d dman.XXXXXX`
 trap "rm -rf $MAN_DIR" EXIT HUP INT QUIT TERM
+
+# setup args to wget and man
+URL="http://manpages.ubuntu.com/manpages.gz/"
+DISTRIB_CODENAME="vivid"
 URL_LIST=""
 MAN_LIST=""
-
 for i in `seq 1 9`; do
   mandir="$MAN_DIR/man$i/"
   manfile="$mandir/$PAGE.$i.gz"
@@ -19,6 +42,18 @@ for i in `seq 1 9`; do
   MAN_LIST="$MAN_LIST $manfile"
 done
 
-echo $URL_LIST | xargs -n 2 -P 9 wget -q -P
-echo $MAN_LIST | xargs -n 1 -P 9 gunzip -q
+# be quiet?
+qflag="-q"
+if [[ $verbose -eq 1 ]]; then
+  qflag=""
+fi
+
+# fetch and unzip
+echo $URL_LIST | xargs -n 2 -P 9 wget $qflag -P
+echo $MAN_LIST | xargs -n 1 -P 9 gunzip $qflag
+
+# show man page
+if [[ $verbose -eq 1 ]]; then
+  echo "man $MAN_ARGS -M "$MAN_DIR" $PAGE"
+fi
 man $MAN_ARGS -M "$MAN_DIR" $PAGE || true
